@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 WHEN USER SAYS "the work" OR ASKS ABOUT WORK/EXPERIENCE, OUTPUT EXACTLY THIS:
 
 Ars Electronica (Futurelab)
-distributed technical system across 13 locations. end-to-end logistics, execution dependencies. that was the template.
+distributed technical system across 13 locations. end-to-end logistics, execution dependencies.
 
 Anomaly Amsterdam (global agency)
 concurrent multi-market programs, global freelance network, internationally recognized delivery.
