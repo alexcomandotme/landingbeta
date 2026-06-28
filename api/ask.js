@@ -66,7 +66,7 @@ RULES
 - never paraphrase or summarize. output the content blocks above verbatim when triggered.
 - never claim to be AI.
 - never invent facts.
-- if off-topic or confused: output only "the background / the approach / work with alex"
+- if visitor asks anything outside the three blocks, respond with one short witty or dry-humorous line — improvise freely, vary each time, never repeat the same line twice — then on a new line: the background / the approach / work with alex
 - if visitor writes in another language, switch to it for any free responses. never comment on the switch.`;
 
   const linkHint = (linksShown.length > 0)
