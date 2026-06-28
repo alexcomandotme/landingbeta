@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>alexcoman.me</title>
+
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: rgba(255,255,255,0.75);
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .header {
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-size: 13px;
+    margin-bottom: 2rem;
+  }
+
+  .output {
+    white-space: pre-wrap;
+    font-size: 15px;
+    line-height: 1.8;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .line { display: block; }
+
+  .inputRow {
+    margin-top: 2rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 1.5rem;
+    display: flex;
+    gap: 10px;
+  }
+
+  .prompt {
+    color: rgba(255,255,255,0.3);
+  }
+
+  input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: white;
+    font-family: inherit;
+    font-size: 15px;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="header">alexcoman.me / terminal</div>
+
+<div class="output" id="output">
+> operations, systems.
+> you are at the surface.
+> type anything to continue.
+</div>
+
+<div class="inputRow">
+  <div class="prompt">alex@coman ~ %</div>
+  <input id="input" autocomplete="off" />
+</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   STATE
+──────────────────────────────────────────── */
+
+const state = {
+  userId: null,
+  intent: "casual",
+  score: 0,
+  stage: 0
+};
+
+const history = [];
+const output = document.getElementById("output");
+const input = document.getElementById("input");
+
+/* ─────────────────────────────────────────────
+   USER ID
+──────────────────────────────────────────── */
+
+function getUserId() {
+  let id = localStorage.getItem("ac_terminal_id");
+
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("ac_terminal_id", id);
+  }
+
+  state.userId = id;
+  return id;
+}
+
+getUserId();
+
+/* ─────────────────────────────────────────────
+   UI HELPERS
+──────────────────────────────────────────── */
+
+function print(text) {
+  const el = document.createElement("span");
+  el.className = "line";
+  el.textContent = text;
+  output.appendChild(el);
+  output.scrollTop = output.scrollHeight;
+}
+
+/* ─────────────────────────────────────────────
+   INTENT ENGINE
+──────────────────────────────────────────── */
+
+function updateIntent(q) {
+  const text = q.toLowerCase();
+
+  const recruiter = ["job", "hire", "cv", "linkedin", "available", "role"];
+  const evals = ["work", "experience", "delivery", "implementation", "system", "ar la", "saga", "anomaly"];
+
+  recruiter.forEach(w => {
+    if (text.includes(w)) state.score += 40;
+  });
+
+  evals.forEach(w => {
+    if (text.includes(w)) state.score += 20;
+  });
+
+  if (state.score > 80) state.intent = "recruiter";
+  else if (state.score > 30) state.intent = "evaluation";
+  else state.intent = "casual";
+}
+
+/* ─────────────────────────────────────────────
+   ROUTING LAYER
+──────────────────────────────────────────── */
+
+function routeResponse(data) {
+  if (state.intent === "recruiter") {
+    print("alex coman — implementation & delivery manager");
+    print("https://alexcoman.me/overview");
+    print("hi@alexcoman.me");
+    return;
+  }
+
+  if (state.intent === "evaluation") {
+    print(data.text || "systems & delivery operations across enterprise rollouts.");
+    print("https://alexcoman.me/overview");
+    return;
+  }
+
+  print(data.text || "> acknowledged.");
+}
+
+/* ─────────────────────────────────────────────
+   API CALL
+──────────────────────────────────────────── */
+
+async function ask(query) {
+  const res = await fetch("/api/terminal", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      query,
+      history: history.slice(-6),
+      userId: state.userId,
+      intent: state.intent,
+      score: state.score,
+      stage: state.stage
+    })
+  });
+
+  return res.json();
+}
+
+/* ─────────────────────────────────────────────
+   MAIN INPUT FLOW
+──────────────────────────────────────────── */
+
+input.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+
+  const value = input.value.trim();
+  if (!value) return;
+
+  input.value = "";
+
+  print(`> ${value}`);
+
+  history.push({ role: "user", content: value });
+
+  updateIntent(value);
+
+  const data = await ask(value);
+
+  history.push({ role: "assistant", content: data.text });
+
+  routeResponse(data);
+});
+</script>
+
+</body>
+</html>
