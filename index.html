@@ -33,7 +33,7 @@
 
   .stack-badge {
     position: fixed;
-    bottom: 1.5rem;
+    top: 1.5rem;
     right: 1.5rem;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -50,7 +50,7 @@
     line-height: 2;
     font-weight: 700;
     overflow-y: auto;
-    max-height: 60vh;
+    max-height: 70vh;
   }
 
   .term-output .line { display: block; white-space: pre-wrap; word-break: break-word; }
@@ -59,6 +59,16 @@
   .term-output .ok     { color: #1D9E75; }
   .term-output .err    { color: #E24B4A; }
   .term-output .ai     { color: #5DCAA5; }
+
+  .term-output .line.fade-in {
+    opacity: 0;
+    animation: fadeIn 0.4s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .ai-link {
     color: #5DCAA5;
@@ -100,10 +110,10 @@
 
   @media (max-width: 640px) {
     body { padding: 1.5rem 1.25rem; }
-    .term-output { font-size: 14px; max-height: 55vh; }
+    .term-output { font-size: 14px; max-height: 65vh; }
     .term-prompt  { font-size: 14px; }
     #term-input   { font-size: 16px; }
-    .stack-badge  { font-size: 10px; bottom: 1rem; right: 1rem; }
+    .stack-badge  { font-size: 10px; top: 1rem; right: 1rem; }
   }
 </style>
 </head>
@@ -128,9 +138,6 @@
 </div>
 
 <script>
-/* ─────────────────────────────
-   CONFIG
-───────────────────────────── */
 const config = {
   desktopUrl: 'https://alexcoman.me/desktop',
   apiUrl: '/api/ask',
@@ -140,34 +147,16 @@ const config = {
   birthDate: '1990-08-19T09:30:00Z'
 };
 
-/* ─────────────────────────────
-   STATE
-───────────────────────────── */
-const state = {
-  intent: 'casual',
-  score: 0,
-  stage: 0,
-  linksShown: []
-};
-
-const aiHistory   = [];
-const cmdHistory  = [];
-let cmdHistoryIdx = -1;
-let uptimeInterval = null;
-
-const input  = document.getElementById('term-input');
+const state = { intent: 'casual', score: 0, stage: 0, linksShown: [] };
+const aiHistory = [], cmdHistory = [];
+let cmdHistoryIdx = -1, uptimeInterval = null;
+const input = document.getElementById('term-input');
 const output = document.getElementById('output');
 
-/* ─────────────────────────────
-   FOCUS
-───────────────────────────── */
 window.addEventListener('load',  () => input.focus());
 window.addEventListener('focus', () => input.focus());
 document.addEventListener('click', () => input.focus());
 
-/* ─────────────────────────────
-   UI HELPERS
-───────────────────────────── */
 function addLine(text, cls) {
   const span = document.createElement('span');
   span.className = 'line ' + (cls || '');
@@ -182,11 +171,20 @@ function addLines(lines) {
   addLine('');
 }
 
+function addFadeLine(text, cls, delay = 0) {
+  const span = document.createElement('span');
+  span.className = 'line fade-in ' + (cls || 'ai');
+  span.style.animationDelay = delay + 'ms';
+  span.textContent = text;
+  output.appendChild(span);
+  output.scrollTop = output.scrollHeight;
+  return span;
+}
+
 function fadeAndRedirect(url) {
   document.body.classList.add('fade-out');
   setTimeout(() => {
-    try { window.top.location.href = url; }
-    catch (e) { window.location.href = url; }
+    try { window.top.location.href = url; } catch (e) { window.location.href = url; }
   }, 450);
 }
 
@@ -195,18 +193,15 @@ function openInNewTab(url) {
 }
 
 function copyToClipboard(text) {
-  if (navigator.clipboard && window.isSecureContext) {
-    return navigator.clipboard.writeText(text);
-  }
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
   return new Promise((resolve, reject) => {
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.cssText = 'position:fixed;opacity:0;left:-9999px';
     document.body.appendChild(ta);
     ta.focus(); ta.select();
-    try {
-      document.execCommand('copy') ? resolve() : reject();
-    } catch (e) { reject(e); }
+    try { document.execCommand('copy') ? resolve() : reject(); }
+    catch (e) { reject(e); }
     finally { document.body.removeChild(ta); }
   });
 }
@@ -217,28 +212,22 @@ function addEmailBlock() {
   emailLine.style.color = '#5DCAA5';
   emailLine.style.cursor = 'pointer';
   emailLine.style.userSelect = 'text';
-
   const [user, domain] = config.email.split('@');
   const status = document.createElement('span');
   status.textContent = '  [click to copy]';
   status.style.color = 'rgba(255,255,255,0.4)';
-
-  emailLine.innerHTML = '';
   const prefix = document.createElement('span'); prefix.textContent = '> ';
   const uSpan  = document.createElement('span'); uSpan.textContent = user + '\u200B';
   const at     = document.createElement('span'); at.textContent = '@';
   const dSpan  = document.createElement('span'); dSpan.textContent = domain;
   emailLine.append(prefix, uSpan, at, dSpan, status);
-
   emailLine.addEventListener('click', e => {
     e.preventDefault(); e.stopPropagation();
     copyToClipboard(config.email)
       .then(() => { status.textContent = '  [copied]'; setTimeout(() => { status.textContent = '  [click to copy]'; }, 1500); })
       .catch(() => { status.textContent = '  [select & copy manually]'; });
   });
-
   output.appendChild(emailLine);
-
   const gmailLink = document.createElement('a');
   gmailLink.href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(config.email);
   gmailLink.target = '_blank';
@@ -250,26 +239,20 @@ function addEmailBlock() {
   output.scrollTop = output.scrollHeight;
 }
 
-/* ─────────────────────────────
-   UPTIME
-───────────────────────────── */
 function clearUptime() {
   if (uptimeInterval) { clearInterval(uptimeInterval); uptimeInterval = null; }
 }
 
 function getUptime() {
   const diff = new Date() - new Date(config.birthDate);
-  const y  = Math.floor(diff / (1000*60*60*24*365.25));
-  const d  = Math.floor((diff % (1000*60*60*24*365.25)) / (1000*60*60*24));
-  const h  = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
-  const m  = Math.floor((diff % (1000*60*60)) / (1000*60));
-  const s  = Math.floor((diff % (1000*60)) / 1000);
+  const y = Math.floor(diff / (1000*60*60*24*365.25));
+  const d = Math.floor((diff % (1000*60*60*24*365.25)) / (1000*60*60*24));
+  const h = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+  const m = Math.floor((diff % (1000*60*60)) / (1000*60));
+  const s = Math.floor((diff % (1000*60)) / 1000);
   return `${y}y ${d}d ${h}h ${m}m ${s}s`;
 }
 
-/* ─────────────────────────────
-   THINKING DOTS
-───────────────────────────── */
 function showThinkingDots() {
   const span = document.createElement('span');
   span.className = 'line dim';
@@ -284,52 +267,17 @@ function showThinkingDots() {
   return { element: span, stop: () => clearInterval(interval) };
 }
 
-/* ─────────────────────────────
-   TYPING EFFECT
-───────────────────────────── */
-function typeLines(lines, cls, delay = 18) {
-  return new Promise(resolve => {
-    let i = 0;
-    function next() {
-      if (i >= lines.length) { resolve(); return; }
-      const l = lines[i++];
-      const span = document.createElement('span');
-      span.className = 'line ' + (cls || 'ai');
-      output.appendChild(span);
-      output.scrollTop = output.scrollHeight;
-      let ci = 0;
-      const t = setInterval(() => {
-        span.textContent += l[ci++];
-        output.scrollTop = output.scrollHeight;
-        if (ci >= l.length) {
-          clearInterval(t);
-          setTimeout(next, 60);
-        }
-      }, delay);
-    }
-    next();
-  });
-}
-
-/* ─────────────────────────────
-   INTENT ENGINE
-───────────────────────────── */
 function updateIntent(q) {
   const text = q.toLowerCase();
   const recruiterWords = ['job', 'hire', 'cv', 'linkedin', 'available', 'role', 'salary', 'rate', 'freelance'];
   const evalWords      = ['work', 'experience', 'delivery', 'implementation', 'system', 'arla', 'anomaly', 'operations'];
-
   recruiterWords.forEach(w => { if (text.includes(w)) state.score += 40; });
   evalWords.forEach(w      => { if (text.includes(w)) state.score += 20; });
-
   if (state.score > 80)      state.intent = 'recruiter';
   else if (state.score > 30) state.intent = 'evaluation';
   else                       state.intent = 'casual';
 }
 
-/* ─────────────────────────────
-   HARDCODED COMMANDS
-───────────────────────────── */
 const commands = {
   help: () => addLines([
     { text: 'available commands:', cls: 'dim' },
@@ -338,22 +286,18 @@ const commands = {
     { text: '  readme' },
     { text: '  clear' }
   ]),
-
   readme: () => addLines([
     { text: 'this is the surface.' },
     { text: 'the work lives somewhere else.' },
     { text: 'https://linkedin.com/in/alexcoman', cls: 'ok' }
   ]),
-
   clear: () => { output.innerHTML = ''; addLine(''); },
   cls: () => commands.clear(),
-
   whoami: () => addLines([
     { text: 'systems for a living. photography and film for everything else.' },
     { text: 'alexcoman.me/stillhere', cls: 'ai' },
     { text: 'alexcoman.me/werken-film', cls: 'ai' }
   ]),
-
   uptime: () => {
     clearUptime();
     const span = document.createElement('span');
@@ -366,23 +310,16 @@ const commands = {
   }
 };
 
-/* ─────────────────────────────
-   CONTACT
-───────────────────────────── */
 function isContactIntent(q) {
-  const lower = q.toLowerCase();
-  return config.contactKeywords.some(k => lower.includes(k));
+  return config.contactKeywords.some(k => q.toLowerCase().includes(k));
 }
 
 function handleContact() {
-  addLine('> reach out:', 'ai');
+  addLine('reach out:', 'ai');
   addEmailBlock();
   addLine('');
 }
 
-/* ─────────────────────────────
-   AI CALL
-───────────────────────────── */
 async function askAI(query) {
   const thinking = showThinkingDots();
   aiHistory.push({ role: 'user', content: query });
@@ -414,67 +351,58 @@ async function askAI(query) {
     if (aiHistory.length > 12) aiHistory.splice(0, 2);
 
     const lines = text.split('\n');
-    const typedLines = [];
-    const linkLines = [];
-    const emailLines = [];
+    let delay = 0;
 
     lines.forEach(l => {
       const trimmed = l.trim();
+      if (!trimmed) return;
+
       const urlMatch = trimmed.match(/(?:https?:\/\/)?alexcoman\.me\/[a-z0-9\-]+/i)
                     || trimmed.match(/^https?:\/\/\S+/);
+
       if (urlMatch) {
-        linkLines.push({ raw: urlMatch[0] });
+        const raw = urlMatch[0];
+        const fullUrl = raw.startsWith('http') ? raw : 'https://' + raw;
+        if (!state.linksShown.includes(fullUrl)) state.linksShown.push(fullUrl);
+        const a = document.createElement('a');
+        a.href = fullUrl;
+        a.textContent = raw;
+        a.className = 'line fade-in ai-link';
+        a.style.animationDelay = delay + 'ms';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.addEventListener('click', e => { e.preventDefault(); openInNewTab(fullUrl); });
+        output.appendChild(a);
+        output.scrollTop = output.scrollHeight;
+        delay += 80;
       } else if (trimmed.match(/^[\w.]+@[\w.]+\.\w+$/)) {
-        emailLines.push(trimmed);
+        const a = document.createElement('a');
+        a.href = 'mailto:' + trimmed;
+        a.textContent = trimmed;
+        a.style.color = '#5DCAA5';
+        a.style.display = 'block';
+        a.className = 'line fade-in';
+        a.style.animationDelay = delay + 'ms';
+        a.target = '_top';
+        output.appendChild(a);
+        output.scrollTop = output.scrollHeight;
+        delay += 80;
       } else {
-        typedLines.push(l);
+        addFadeLine(trimmed, 'ai', delay);
+        delay += 80;
       }
     });
 
-    // typed text first
-    await typeLines(typedLines.filter(l => l.trim()), 'ai');
-
-    // then links
-    linkLines.forEach(({ raw }) => {
-      const fullUrl = raw.startsWith('http') ? raw : 'https://' + raw;
-      if (!state.linksShown.includes(fullUrl)) state.linksShown.push(fullUrl);
-      const a = document.createElement('a');
-      a.href = fullUrl;
-      a.textContent = raw;
-      a.className = 'line ai-link';
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.addEventListener('click', e => { e.preventDefault(); openInNewTab(fullUrl); });
-      output.appendChild(a);
-      output.scrollTop = output.scrollHeight;
-    });
-
-    // then emails
-    emailLines.forEach(email => {
-      const a = document.createElement('a');
-      a.href = 'mailto:' + email;
-      a.textContent = email;
-      a.style.color = '#5DCAA5';
-      a.style.display = 'block';
-      a.className = 'line';
-      a.target = '_top';
-      output.appendChild(a);
-      output.scrollTop = output.scrollHeight;
-    });
-
-    addLine('');
+    setTimeout(() => { addLine(''); }, delay + 100);
 
   } catch (e) {
     thinking.stop();
     thinking.element.remove();
-    addLine('> connection failed.', 'err');
+    addLine('connection failed.', 'err');
     addLine('');
   }
 }
 
-/* ─────────────────────────────
-   INPUT HANDLER
-───────────────────────────── */
 input.addEventListener('keydown', e => {
   if (e.key === 'ArrowUp') {
     e.preventDefault();
@@ -495,7 +423,7 @@ input.addEventListener('keydown', e => {
 
   if (e.key !== 'Enter') return;
 
-  const val     = input.value.trim();
+  const val      = input.value.trim();
   const valLower = val.toLowerCase();
   if (!val) return;
 
