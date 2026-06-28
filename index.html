@@ -31,6 +31,19 @@
     font-weight: 700;
   }
 
+  .stack-badge {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.2);
+    line-height: 1.6;
+    text-align: right;
+    pointer-events: none;
+  }
+
   .term-output {
     font-size: 15px;
     color: rgba(255,255,255,0.6);
@@ -90,6 +103,7 @@
     .term-output { font-size: 14px; max-height: 55vh; }
     .term-prompt  { font-size: 14px; }
     #term-input   { font-size: 16px; }
+    .stack-badge  { font-size: 10px; bottom: 1rem; right: 1rem; }
   }
 </style>
 </head>
@@ -101,12 +115,16 @@
   <span class="line">operations, systems. you're at the surface.</span>
   <span class="line dim">there's more underneath.</span>
   <span class="line">&nbsp;</span>
-  <span class="line">&gt; what are you looking for?</span>
+  <span class="line dim">→ the work  → the approach  → work with alex</span>
 </div>
 
 <div class="term-input-row">
   <span class="term-prompt">alex@coman ~ %</span>
   <input id="term-input" autocomplete="off" autocorrect="off" spellcheck="false" autofocus placeholder="type a command..." />
+</div>
+
+<div class="stack-badge">
+  groq + llama-3.3-70b · next.js · vercel<br>built by alex.
 </div>
 
 <script>
@@ -119,11 +137,7 @@ const config = {
   email: 'hi@alexcoman.me',
   redirectCommands: ['open desktop', 'cd desktop', 'cd /desktop', 'desktop'],
   contactKeywords: ['contact', 'email', 'reach', 'mail', 'get in touch', 'hire', 'work with'],
-  birthDate: '1990-08-19T09:30:00Z',
-  funfacts: [
-    "LLMs don't actually think. they autocomplete at scale.",
-    "AI's every response is a statistical guess."
-  ]
+  birthDate: '1990-08-19T09:30:00Z'
 };
 
 /* ─────────────────────────────
@@ -276,7 +290,7 @@ function showThinkingDots() {
 function updateIntent(q) {
   const text = q.toLowerCase();
   const recruiterWords = ['job', 'hire', 'cv', 'linkedin', 'available', 'role', 'salary', 'rate', 'freelance'];
-  const evalWords      = ['work', 'experience', 'delivery', 'implementation', 'system', 'arla', 'saga', 'anomaly', 'operations'];
+  const evalWords      = ['work', 'experience', 'delivery', 'implementation', 'system', 'arla', 'anomaly', 'operations'];
 
   recruiterWords.forEach(w => { if (text.includes(w)) state.score += 40; });
   evalWords.forEach(w      => { if (text.includes(w)) state.score += 20; });
@@ -293,10 +307,8 @@ const commands = {
   help: () => addLines([
     { text: 'available commands:', cls: 'dim' },
     { text: '  whoami' },
-    { text: '  readme' },
     { text: '  uptime' },
-    { text: '  funfact' },
-    { text: '  sayhello' },
+    { text: '  readme' },
     { text: '  clear' }
   ]),
 
@@ -309,10 +321,11 @@ const commands = {
   clear: () => { output.innerHTML = ''; addLine(''); },
   cls: () => commands.clear(),
 
-  whoami: () => {
-    addLine('redirecting to /desktop...', 'dim');
-    setTimeout(() => fadeAndRedirect(config.desktopUrl), 600);
-  },
+  whoami: () => addLines([
+    { text: 'systems for a living. photography and film for everything else.' },
+    { text: 'alexcoman.me/stillhere', cls: 'ai' },
+    { text: 'alexcoman.me/werken-film', cls: 'ai' }
+  ]),
 
   uptime: () => {
     clearUptime();
@@ -323,16 +336,6 @@ const commands = {
     addLine('load average: variable', 'dim');
     addLine('');
     uptimeInterval = setInterval(() => { span.textContent = getUptime(); }, 1000);
-  },
-
-  funfact: () => {
-    addLine(config.funfacts[Math.floor(Math.random() * config.funfacts.length)]);
-    addLine('');
-  },
-
-  sayhello: () => {
-    addLine('> hello!', 'ai');
-    askAI('hello');
   }
 };
 
