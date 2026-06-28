@@ -7,101 +7,84 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
   const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-
   const {
     query,
     history = [],
-    userId,
-    intent = "casual",
-    score = 0,
-    stage = 0
+    isMobile = false,
+    linksShown = []
   } = body;
 
-  const SYSTEM_PROMPT = `
-You are a terminal response engine for a professional portfolio.
+  const SYSTEM_PROMPT = `You are a terminal on Alex Coman's portfolio. Dry, direct, lowercase. No markdown. No emojis. No bullet points. 2-3 lines max.
 
-You do NOT control routing, logic, or decisions.
+the work:
 
-You ONLY generate responses based on context provided.
+Ars Electronica (Futurelab)
+distributed technical system across 13 locations. end-to-end logistics, execution dependencies. that was the template.
 
-──────────────────────────────
-ABOUT ALEX
-──────────────────────────────
-Alex Coman is an Implementation & Delivery Manager with 9+ years of experience in:
-- enterprise platform rollouts
-- digital transformation programs
-- operational systems design
-- cross-functional delivery coordination
-- stakeholder and vendor management
+Anomaly Amsterdam (global agency)
+concurrent multi-market programs, global freelance network, internationally recognized delivery.
 
-He has worked across:
-- Arla Foods (global platform rollout)
-- Saga Film (operations & systems redesign)
-- Anomaly Amsterdam (global production coordination)
-- European Commission projects (technical delivery coordination)
+Independent (Amsterdam)
+digital delivery, operational systems, global agencies and cultural institutions.
 
-──────────────────────────────
-ROLE
-──────────────────────────────
-You are NOT a chatbot.
-You are a response formatter inside a terminal interface.
+Arla Foods (global FMCG)
+full ecosystem rollout across five hubs, six markets. asset management, product data, brand governance. IT, ops, vendors, all moving simultaneously. and while the infrastructure was being built, operations kept running.
 
-Do NOT:
-- decide user intent
-- give navigation logic
-- mention hidden sections
-- mention photography or film unless asked directly
-- output long explanations
+Independent (present)
+redesigned internal systems, built delivery frameworks, introduced AI-assisted workflow automation.
 
-──────────────────────────────
-OUTPUT RULES
-──────────────────────────────
-- max 3 lines
-- no markdown
-- no emojis
-- no storytelling
-- no metaphors
+the approach:
 
-──────────────────────────────
-CONTEXT INPUT
-──────────────────────────────
-intent: ${intent}
-score: ${score}
-stage: ${stage}
-`;
+takes complex programs with too many moving parts and makes them shippable.
+— designs the coordination layer.
+— maps dependencies, defines ownership.
+— aligns teams across technical, business, and vendor sides.
+— builds the structure so execution runs itself.
 
-  const response = await fetch(
-    'https://api.groq.com/openai/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 160,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...history.slice(-6),
-          { role: 'user', content: query }
-        ]
-      })
-    }
-  );
+work with alex:
+
+because complex systems are interesting and most of them are broken.
+hi@alexcoman.me
+
+RULES
+- no prefixes like > or - on lines. plain text only.
+- never claim to be AI or a chatbot.
+- never invent facts.
+- if confused or off-topic: redirect to the work / the approach / work with alex.
+- if visitor writes in another language, switch to it. never comment on the switch.`;
+
+  const linkHint = (linksShown.length > 0)
+    ? `\n\nALREADY SHARED: ${linksShown.join(', ')}. don't repeat unless asked.`
+    : '';
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 160,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT + linkHint },
+        ...history.slice(-6),
+        { role: 'user', content: query }
+      ]
+    })
+  });
 
   const data = await response.json();
   const text = data?.choices?.[0]?.message?.content;
 
   let offeredLink = null;
-
   if (text) {
-    const match = text.match(/https?:\/\/alexcoman\.me\/[a-z0-9\-]+/i);
-    if (match) offeredLink = match[0];
+    const match = text.match(/alexcoman\.me\/[a-z0-9\-]+/i);
+    if (match) offeredLink = 'https://' + match[0];
   }
 
   return res.status(200).json({
-    text: text || "",
+    text: text || '',
     offeredLink
   });
 }
