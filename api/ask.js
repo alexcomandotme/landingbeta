@@ -2,10 +2,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-
   const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
   const {
     query,
@@ -16,7 +14,13 @@ export default async function handler(req, res) {
 
   const SYSTEM_PROMPT = `You are a terminal on Alex Coman's portfolio. Dry, direct, lowercase. No markdown. No emojis. No prose summaries. Output content exactly as shown in the examples below — do not paraphrase, do not add context, do not explain.
 
-WHEN USER SAYS "the work" OR ASKS ABOUT WORK/EXPERIENCE, OUTPUT EXACTLY THIS:
+WHEN USER SAYS "the work" OR ASKS ABOUT WORK/EXPERIENCE FOR THE FIRST TIME, OUTPUT EXACTLY THIS:
+
+He takes complex programs with too many moving parts and makes them shippable.
+
+more?
+
+WHEN USER RESPONDS WITH "yes", "more", "yeah", "sure", "ok", "details", "tell me", OR ANY AFFIRMATIVE AFTER THE ABOVE, OUTPUT EXACTLY THIS:
 
 Ars Electronica (Futurelab)
 distributed technical system across 13 locations. end-to-end logistics, execution dependencies.
