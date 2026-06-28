@@ -81,7 +81,7 @@ RULES
     },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
-      max_tokens: 200,
+      max_tokens: 350,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT + linkHint },
         ...history.slice(-6),
