@@ -285,6 +285,33 @@ function showThinkingDots() {
 }
 
 /* ─────────────────────────────
+   TYPING EFFECT
+───────────────────────────── */
+function typeLines(lines, cls, delay = 18) {
+  return new Promise(resolve => {
+    let i = 0;
+    function next() {
+      if (i >= lines.length) { resolve(); return; }
+      const l = lines[i++];
+      const span = document.createElement('span');
+      span.className = 'line ' + (cls || 'ai');
+      output.appendChild(span);
+      output.scrollTop = output.scrollHeight;
+      let ci = 0;
+      const t = setInterval(() => {
+        span.textContent += l[ci++];
+        output.scrollTop = output.scrollHeight;
+        if (ci >= l.length) {
+          clearInterval(t);
+          setTimeout(next, 60);
+        }
+      }, delay);
+    }
+    next();
+  });
+}
+
+/* ─────────────────────────────
    INTENT ENGINE
 ───────────────────────────── */
 function updateIntent(q) {
@@ -381,46 +408,58 @@ async function askAI(query) {
     thinking.stop();
     thinking.element.remove();
 
-    if (!text) { addLine('> no response.', 'err'); addLine(''); return; }
+    if (!text) { addLine('no response.', 'err'); addLine(''); return; }
 
     aiHistory.push({ role: 'assistant', content: text });
     if (aiHistory.length > 12) aiHistory.splice(0, 2);
 
-    const lines = text.split('\n').filter(l => l.trim());
+    const lines = text.split('\n');
+    const typedLines = [];
+    const linkLines = [];
+    const emailLines = [];
 
     lines.forEach(l => {
-      const urlMatch = l.trim().match(/(?:https?:\/\/)?alexcoman\.me\/[a-z0-9\-]+/i)
-                    || l.trim().match(/^https?:\/\/\S+/);
-
+      const trimmed = l.trim();
+      const urlMatch = trimmed.match(/(?:https?:\/\/)?alexcoman\.me\/[a-z0-9\-]+/i)
+                    || trimmed.match(/^https?:\/\/\S+/);
       if (urlMatch) {
-        const rawUrl = urlMatch[0];
-        const fullUrl = rawUrl.startsWith('http') ? rawUrl : 'https://' + rawUrl;
-        if (!state.linksShown.includes(fullUrl)) state.linksShown.push(fullUrl);
-
-        const a = document.createElement('a');
-        a.href = fullUrl;
-        a.textContent = '> ' + rawUrl;
-        a.className = 'line ai-link';
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.addEventListener('click', e => { e.preventDefault(); openInNewTab(fullUrl); });
-        output.appendChild(a);
-        output.scrollTop = output.scrollHeight;
-        openInNewTab(fullUrl);
-
-      } else if (l.trim().match(/^[\w.]+@[\w.]+\.\w+$/)) {
-        const a = document.createElement('a');
-        a.href = 'mailto:' + l.trim();
-        a.textContent = '> ' + l.trim();
-        a.style.color = '#5DCAA5';
-        a.style.display = 'block';
-        a.className = 'line';
-        a.target = '_top';
-        output.appendChild(a);
-        output.scrollTop = output.scrollHeight;
+        linkLines.push({ raw: urlMatch[0] });
+      } else if (trimmed.match(/^[\w.]+@[\w.]+\.\w+$/)) {
+        emailLines.push(trimmed);
       } else {
-        addLine('> ' + l, 'ai');
+        typedLines.push(l);
       }
+    });
+
+    // typed text first
+    await typeLines(typedLines.filter(l => l.trim()), 'ai');
+
+    // then links
+    linkLines.forEach(({ raw }) => {
+      const fullUrl = raw.startsWith('http') ? raw : 'https://' + raw;
+      if (!state.linksShown.includes(fullUrl)) state.linksShown.push(fullUrl);
+      const a = document.createElement('a');
+      a.href = fullUrl;
+      a.textContent = raw;
+      a.className = 'line ai-link';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.addEventListener('click', e => { e.preventDefault(); openInNewTab(fullUrl); });
+      output.appendChild(a);
+      output.scrollTop = output.scrollHeight;
+    });
+
+    // then emails
+    emailLines.forEach(email => {
+      const a = document.createElement('a');
+      a.href = 'mailto:' + email;
+      a.textContent = email;
+      a.style.color = '#5DCAA5';
+      a.style.display = 'block';
+      a.className = 'line';
+      a.target = '_top';
+      output.appendChild(a);
+      output.scrollTop = output.scrollHeight;
     });
 
     addLine('');
