@@ -353,6 +353,9 @@ async function askAI(query) {
     const lines = text.split('\n');
     let delay = 0;
 
+    // Detect role/company lines — short lines ending with ) like "anomaly amsterdam (global agency)"
+    const isCompanyLine = (l) => /^[\w\s]+\([\w\s]+\)$/.test(l.trim());
+
     lines.forEach(l => {
       const trimmed = l.trim();
       if (!trimmed) {
@@ -392,7 +395,8 @@ async function askAI(query) {
         output.scrollTop = output.scrollHeight;
         delay += 80;
       } else {
-        addFadeLine(trimmed, 'ai', delay);
+        const display = isCompanyLine(trimmed) ? '• ' + trimmed : trimmed;
+        addFadeLine(display, 'ai', delay);
         delay += 80;
       }
     });
