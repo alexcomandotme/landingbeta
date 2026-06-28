@@ -355,7 +355,11 @@ async function askAI(query) {
 
     lines.forEach(l => {
       const trimmed = l.trim();
-      if (!trimmed) return;
+      if (!trimmed) {
+        addFadeLine('\u00A0', 'dim', delay);
+        delay += 80;
+        return;
+      }
 
       const urlMatch = trimmed.match(/(?:https?:\/\/)?alexcoman\.me\/[a-z0-9\-]+/i)
                     || trimmed.match(/^https?:\/\/\S+/);
