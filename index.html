@@ -4,216 +4,480 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>alexcoman.me</title>
-
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
+  html, body { height: 100%; }
   body {
     background: transparent;
-    color: rgba(255,255,255,0.75);
     font-family: 'JetBrains Mono', monospace;
     padding: 2rem;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 100vh;
+    transition: opacity 0.4s ease;
   }
+  body.fade-out { opacity: 0; }
 
-  .header {
-    color: rgba(255,255,255,0.3);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    font-size: 13px;
-    margin-bottom: 2rem;
-  }
-
-  .output {
-    white-space: pre-wrap;
+  .term-header {
     font-size: 15px;
-    line-height: 1.8;
-    max-height: 60vh;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    font-weight: 700;
+  }
+
+  .term-output {
+    font-size: 15px;
+    color: rgba(255,255,255,0.6);
+    line-height: 2;
+    font-weight: 700;
     overflow-y: auto;
+    max-height: 60vh;
   }
 
-  .line { display: block; }
+  .term-output .line { display: block; white-space: pre-wrap; word-break: break-word; }
+  .term-output .dim    { color: rgba(255,255,255,0.3); }
+  .term-output .bright { color: #fff; }
+  .term-output .ok     { color: #1D9E75; }
+  .term-output .err    { color: #E24B4A; }
+  .term-output .ai     { color: #5DCAA5; }
 
-  .inputRow {
-    margin-top: 2rem;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    padding-top: 1.5rem;
+  .ai-link {
+    color: #5DCAA5;
+    cursor: pointer;
+    display: block;
+    text-decoration: none;
+  }
+  .ai-link:hover { text-decoration: underline; }
+
+  .term-input-row {
     display: flex;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
+    margin-top: 1.5rem;
+    border-top: 0.5px solid rgba(255,255,255,0.12);
+    padding-top: 1.5rem;
   }
-
-  .prompt {
+  .term-prompt {
+    font-size: 15px;
     color: rgba(255,255,255,0.3);
+    white-space: nowrap;
+    font-weight: 700;
   }
-
-  input {
-    flex: 1;
+  #term-input {
     background: transparent;
     border: none;
     outline: none;
-    color: white;
-    font-family: inherit;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    flex: 1;
+    caret-color: #fff;
+  }
+  #term-input::placeholder {
+    color: rgba(255,255,255,0.5);
+    font-weight: 700;
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 1.5rem 1.25rem; }
+    .term-output { font-size: 14px; max-height: 55vh; }
+    .term-prompt  { font-size: 14px; }
+    #term-input   { font-size: 16px; }
   }
 </style>
 </head>
-
 <body>
 
-<div class="header">alexcoman.me / terminal</div>
+<div class="term-header">alexcoman.me</div>
 
-<div class="output" id="output">
-> operations, systems.
-> you are at the surface.
-> type anything to continue.
+<div class="term-output" id="output">
+  <span class="line">operations, systems. you're at the surface.</span>
+  <span class="line dim">there's more underneath.</span>
+  <span class="line">&nbsp;</span>
+  <span class="line">&gt; what are you looking for?</span>
 </div>
 
-<div class="inputRow">
-  <div class="prompt">alex@coman ~ %</div>
-  <input id="input" autocomplete="off" />
+<div class="term-input-row">
+  <span class="term-prompt">alex@coman ~ %</span>
+  <input id="term-input" autocomplete="off" autocorrect="off" spellcheck="false" autofocus placeholder="type a command..." />
 </div>
 
 <script>
-/* ─────────────────────────────────────────────
-   STATE
-──────────────────────────────────────────── */
-
-const state = {
-  userId: null,
-  intent: "casual",
-  score: 0,
-  stage: 0
+/* ─────────────────────────────
+   CONFIG
+───────────────────────────── */
+const config = {
+  desktopUrl: 'https://alexcoman.me/desktop',
+  apiUrl: '/api/ask',
+  email: 'hi@alexcoman.me',
+  redirectCommands: ['open desktop', 'cd desktop', 'cd /desktop', 'desktop'],
+  contactKeywords: ['contact', 'email', 'reach', 'mail', 'get in touch', 'hire', 'work with'],
+  birthDate: '1990-08-19T09:30:00Z',
+  funfacts: [
+    "LLMs don't actually think. they autocomplete at scale.",
+    "AI's every response is a statistical guess."
+  ]
 };
 
-const history = [];
-const output = document.getElementById("output");
-const input = document.getElementById("input");
+/* ─────────────────────────────
+   STATE
+───────────────────────────── */
+const state = {
+  intent: 'casual',
+  score: 0,
+  stage: 0,
+  linksShown: []
+};
 
-/* ─────────────────────────────────────────────
-   USER ID
-──────────────────────────────────────────── */
+const aiHistory   = [];
+const cmdHistory  = [];
+let cmdHistoryIdx = -1;
+let uptimeInterval = null;
 
-function getUserId() {
-  let id = localStorage.getItem("ac_terminal_id");
+const input  = document.getElementById('term-input');
+const output = document.getElementById('output');
 
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem("ac_terminal_id", id);
-  }
+/* ─────────────────────────────
+   FOCUS
+───────────────────────────── */
+window.addEventListener('load',  () => input.focus());
+window.addEventListener('focus', () => input.focus());
+document.addEventListener('click', () => input.focus());
 
-  state.userId = id;
-  return id;
+/* ─────────────────────────────
+   UI HELPERS
+───────────────────────────── */
+function addLine(text, cls) {
+  const span = document.createElement('span');
+  span.className = 'line ' + (cls || '');
+  span.textContent = text;
+  output.appendChild(span);
+  output.scrollTop = output.scrollHeight;
+  return span;
 }
 
-getUserId();
+function addLines(lines) {
+  lines.forEach(l => addLine(l.text, l.cls || ''));
+  addLine('');
+}
 
-/* ─────────────────────────────────────────────
-   UI HELPERS
-──────────────────────────────────────────── */
+function fadeAndRedirect(url) {
+  document.body.classList.add('fade-out');
+  setTimeout(() => {
+    try { window.top.location.href = url; }
+    catch (e) { window.location.href = url; }
+  }, 450);
+}
 
-function print(text) {
-  const el = document.createElement("span");
-  el.className = "line";
-  el.textContent = text;
-  output.appendChild(el);
+function openInNewTab(url) {
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;left:-9999px';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try {
+      document.execCommand('copy') ? resolve() : reject();
+    } catch (e) { reject(e); }
+    finally { document.body.removeChild(ta); }
+  });
+}
+
+function addEmailBlock() {
+  const emailLine = document.createElement('div');
+  emailLine.className = 'line';
+  emailLine.style.color = '#5DCAA5';
+  emailLine.style.cursor = 'pointer';
+  emailLine.style.userSelect = 'text';
+
+  const [user, domain] = config.email.split('@');
+  const status = document.createElement('span');
+  status.textContent = '  [click to copy]';
+  status.style.color = 'rgba(255,255,255,0.4)';
+
+  emailLine.innerHTML = '';
+  const prefix = document.createElement('span'); prefix.textContent = '> ';
+  const uSpan  = document.createElement('span'); uSpan.textContent = user + '\u200B';
+  const at     = document.createElement('span'); at.textContent = '@';
+  const dSpan  = document.createElement('span'); dSpan.textContent = domain;
+  emailLine.append(prefix, uSpan, at, dSpan, status);
+
+  emailLine.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    copyToClipboard(config.email)
+      .then(() => { status.textContent = '  [copied]'; setTimeout(() => { status.textContent = '  [click to copy]'; }, 1500); })
+      .catch(() => { status.textContent = '  [select & copy manually]'; });
+  });
+
+  output.appendChild(emailLine);
+
+  const gmailLink = document.createElement('a');
+  gmailLink.href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(config.email);
+  gmailLink.target = '_blank';
+  gmailLink.rel = 'noopener noreferrer';
+  gmailLink.textContent = '> open in gmail';
+  gmailLink.className = 'line';
+  gmailLink.style.color = 'rgba(255,255,255,0.4)';
+  output.appendChild(gmailLink);
   output.scrollTop = output.scrollHeight;
 }
 
-/* ─────────────────────────────────────────────
-   INTENT ENGINE
-──────────────────────────────────────────── */
+/* ─────────────────────────────
+   UPTIME
+───────────────────────────── */
+function clearUptime() {
+  if (uptimeInterval) { clearInterval(uptimeInterval); uptimeInterval = null; }
+}
 
+function getUptime() {
+  const diff = new Date() - new Date(config.birthDate);
+  const y  = Math.floor(diff / (1000*60*60*24*365.25));
+  const d  = Math.floor((diff % (1000*60*60*24*365.25)) / (1000*60*60*24));
+  const h  = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+  const m  = Math.floor((diff % (1000*60*60)) / (1000*60));
+  const s  = Math.floor((diff % (1000*60)) / 1000);
+  return `${y}y ${d}d ${h}h ${m}m ${s}s`;
+}
+
+/* ─────────────────────────────
+   THINKING DOTS
+───────────────────────────── */
+function showThinkingDots() {
+  const span = document.createElement('span');
+  span.className = 'line dim';
+  span.textContent = '>';
+  output.appendChild(span);
+  output.scrollTop = output.scrollHeight;
+  let dots = 0;
+  const interval = setInterval(() => {
+    dots = (dots + 1) % 4;
+    span.textContent = '>' + '.'.repeat(dots);
+  }, 300);
+  return { element: span, stop: () => clearInterval(interval) };
+}
+
+/* ─────────────────────────────
+   INTENT ENGINE
+───────────────────────────── */
 function updateIntent(q) {
   const text = q.toLowerCase();
+  const recruiterWords = ['job', 'hire', 'cv', 'linkedin', 'available', 'role', 'salary', 'rate', 'freelance'];
+  const evalWords      = ['work', 'experience', 'delivery', 'implementation', 'system', 'arla', 'saga', 'anomaly', 'operations'];
 
-  const recruiter = ["job", "hire", "cv", "linkedin", "available", "role"];
-  const evals = ["work", "experience", "delivery", "implementation", "system", "ar la", "saga", "anomaly"];
+  recruiterWords.forEach(w => { if (text.includes(w)) state.score += 40; });
+  evalWords.forEach(w      => { if (text.includes(w)) state.score += 20; });
 
-  recruiter.forEach(w => {
-    if (text.includes(w)) state.score += 40;
-  });
-
-  evals.forEach(w => {
-    if (text.includes(w)) state.score += 20;
-  });
-
-  if (state.score > 80) state.intent = "recruiter";
-  else if (state.score > 30) state.intent = "evaluation";
-  else state.intent = "casual";
+  if (state.score > 80)      state.intent = 'recruiter';
+  else if (state.score > 30) state.intent = 'evaluation';
+  else                       state.intent = 'casual';
 }
 
-/* ─────────────────────────────────────────────
-   ROUTING LAYER
-──────────────────────────────────────────── */
+/* ─────────────────────────────
+   HARDCODED COMMANDS
+───────────────────────────── */
+const commands = {
+  help: () => addLines([
+    { text: 'available commands:', cls: 'dim' },
+    { text: '  whoami' },
+    { text: '  readme' },
+    { text: '  uptime' },
+    { text: '  funfact' },
+    { text: '  sayhello' },
+    { text: '  clear' }
+  ]),
 
-function routeResponse(data) {
-  if (state.intent === "recruiter") {
-    print("alex coman — implementation & delivery manager");
-    print("https://alexcoman.me/overview");
-    print("hi@alexcoman.me");
+  readme: () => addLines([
+    { text: 'this is the surface.' },
+    { text: 'the work lives somewhere else.' },
+    { text: 'https://linkedin.com/in/alexcoman', cls: 'ok' }
+  ]),
+
+  clear: () => { output.innerHTML = ''; addLine(''); },
+  cls: () => commands.clear(),
+
+  whoami: () => {
+    addLine('redirecting to /desktop...', 'dim');
+    setTimeout(() => fadeAndRedirect(config.desktopUrl), 600);
+  },
+
+  uptime: () => {
+    clearUptime();
+    const span = document.createElement('span');
+    span.className = 'line bright';
+    span.textContent = getUptime();
+    output.appendChild(span);
+    addLine('load average: variable', 'dim');
+    addLine('');
+    uptimeInterval = setInterval(() => { span.textContent = getUptime(); }, 1000);
+  },
+
+  funfact: () => {
+    addLine(config.funfacts[Math.floor(Math.random() * config.funfacts.length)]);
+    addLine('');
+  },
+
+  sayhello: () => {
+    addLine('> hello!', 'ai');
+    askAI('hello');
+  }
+};
+
+/* ─────────────────────────────
+   CONTACT
+───────────────────────────── */
+function isContactIntent(q) {
+  const lower = q.toLowerCase();
+  return config.contactKeywords.some(k => lower.includes(k));
+}
+
+function handleContact() {
+  addLine('> reach out:', 'ai');
+  addEmailBlock();
+  addLine('');
+}
+
+/* ─────────────────────────────
+   AI CALL
+───────────────────────────── */
+async function askAI(query) {
+  const thinking = showThinkingDots();
+  aiHistory.push({ role: 'user', content: query });
+
+  try {
+    const res = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        history:    aiHistory.slice(-6),
+        isMobile:   window.innerWidth < 768,
+        linksShown: state.linksShown,
+        intent:     state.intent,
+        score:      state.score,
+        stage:      state.stage
+      })
+    });
+
+    const data = await res.json();
+    const text = data.text;
+
+    thinking.stop();
+    thinking.element.remove();
+
+    if (!text) { addLine('> no response.', 'err'); addLine(''); return; }
+
+    aiHistory.push({ role: 'assistant', content: text });
+    if (aiHistory.length > 12) aiHistory.splice(0, 2);
+
+    const lines = text.split('\n').filter(l => l.trim());
+
+    lines.forEach(l => {
+      const urlMatch = l.trim().match(/(?:https?:\/\/)?alexcoman\.me\/[a-z0-9\-]+/i)
+                    || l.trim().match(/^https?:\/\/\S+/);
+
+      if (urlMatch) {
+        const rawUrl = urlMatch[0];
+        const fullUrl = rawUrl.startsWith('http') ? rawUrl : 'https://' + rawUrl;
+        if (!state.linksShown.includes(fullUrl)) state.linksShown.push(fullUrl);
+
+        const a = document.createElement('a');
+        a.href = fullUrl;
+        a.textContent = '> ' + rawUrl;
+        a.className = 'line ai-link';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.addEventListener('click', e => { e.preventDefault(); openInNewTab(fullUrl); });
+        output.appendChild(a);
+        output.scrollTop = output.scrollHeight;
+        openInNewTab(fullUrl);
+
+      } else if (l.trim().match(/^[\w.]+@[\w.]+\.\w+$/)) {
+        const a = document.createElement('a');
+        a.href = 'mailto:' + l.trim();
+        a.textContent = '> ' + l.trim();
+        a.style.color = '#5DCAA5';
+        a.style.display = 'block';
+        a.className = 'line';
+        a.target = '_top';
+        output.appendChild(a);
+        output.scrollTop = output.scrollHeight;
+      } else {
+        addLine('> ' + l, 'ai');
+      }
+    });
+
+    addLine('');
+
+  } catch (e) {
+    thinking.stop();
+    thinking.element.remove();
+    addLine('> connection failed.', 'err');
+    addLine('');
+  }
+}
+
+/* ─────────────────────────────
+   INPUT HANDLER
+───────────────────────────── */
+input.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!cmdHistory.length) return;
+    if (cmdHistoryIdx === -1) cmdHistoryIdx = cmdHistory.length;
+    cmdHistoryIdx = Math.max(0, cmdHistoryIdx - 1);
+    input.value = cmdHistory[cmdHistoryIdx] || '';
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (!cmdHistory.length || cmdHistoryIdx === -1) return;
+    cmdHistoryIdx++;
+    if (cmdHistoryIdx >= cmdHistory.length) { cmdHistoryIdx = -1; input.value = ''; }
+    else input.value = cmdHistory[cmdHistoryIdx];
     return;
   }
 
-  if (state.intent === "evaluation") {
-    print(data.text || "systems & delivery operations across enterprise rollouts.");
-    print("https://alexcoman.me/overview");
+  if (e.key !== 'Enter') return;
+
+  const val     = input.value.trim();
+  const valLower = val.toLowerCase();
+  if (!val) return;
+
+  cmdHistory.push(val);
+  cmdHistoryIdx = -1;
+
+  addLine('alex@coman ~ % ' + val, 'dim');
+  input.value = '';
+
+  if (valLower !== 'uptime') clearUptime();
+
+  if (config.redirectCommands.includes(valLower)) {
+    addLine('unlocking /desktop...', 'dim');
+    addLine('redirecting.', 'ok');
+    setTimeout(() => fadeAndRedirect(config.desktopUrl), 800);
     return;
   }
 
-  print(data.text || "> acknowledged.");
-}
+  if (commands[valLower]) { commands[valLower](); return; }
+  if (isContactIntent(val)) { handleContact(); return; }
 
-/* ─────────────────────────────────────────────
-   API CALL
-──────────────────────────────────────────── */
-
-async function ask(query) {
-  const res = await fetch("/api/terminal", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      query,
-      history: history.slice(-6),
-      userId: state.userId,
-      intent: state.intent,
-      score: state.score,
-      stage: state.stage
-    })
-  });
-
-  return res.json();
-}
-
-/* ─────────────────────────────────────────────
-   MAIN INPUT FLOW
-──────────────────────────────────────────── */
-
-input.addEventListener("keydown", async (e) => {
-  if (e.key !== "Enter") return;
-
-  const value = input.value.trim();
-  if (!value) return;
-
-  input.value = "";
-
-  print(`> ${value}`);
-
-  history.push({ role: "user", content: value });
-
-  updateIntent(value);
-
-  const data = await ask(value);
-
-  history.push({ role: "assistant", content: data.text });
-
-  routeResponse(data);
+  updateIntent(val);
+  askAI(val);
 });
 </script>
-
 </body>
 </html>
