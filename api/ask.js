@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
 WHEN USER SAYS "the background" OR ASKS ABOUT WORK/EXPERIENCE FOR THE FIRST TIME, OUTPUT EXACTLY THIS:
 
-Alex takes complex programs with too many moving parts and makes them shippable.
+Hello. Alex has spent 10+ years working internationally across operations, delivery, and systems.
 
 more?
 
