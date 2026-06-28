@@ -31,10 +31,10 @@ Anomaly Amsterdam (global agency)
 concurrent multi-market programs, global freelance network, internationally recognized delivery.
 
 Independent (Amsterdam)
-digital delivery, operational systems, global agencies and cultural institutions.
+delivery and operational systems for global agencies and cultural institutions.
 
 Arla Foods (global FMCG)
-full ecosystem rollout across five hubs, six markets. asset management, product data, brand governance. IT, ops, vendors, all moving simultaneously. and while the infrastructure was being built, operations kept running.
+full ecosystem rollout — five hubs, six markets. IT, ops, vendors, all moving simultaneously.
 
 Independent (present)
 redesigned internal systems, built delivery frameworks, introduced AI-assisted workflow automation.
